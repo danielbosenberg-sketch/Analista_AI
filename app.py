@@ -456,6 +456,14 @@ if "df_raw" in st.session_state:
             
         hist = obtener_historia()
         if not hist.empty:
+            # FIX PARA EL ERROR DECODING: Limpiar dataframe antes de mostrar
+            for col in hist.columns:
+                if hist[col].dtype == 'object':
+                    try:
+                        hist[col] = hist[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8'))
+                    except:
+                        hist[col] = hist[col].astype(str)
+
             st.dataframe(hist)
             if st.button("Borrar Historial"):
                 borrar_historia()
