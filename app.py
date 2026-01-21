@@ -25,11 +25,7 @@ try:
 except Exception as e:
     st.error(f"Error base de datos: {e}")
 
-# Inicializar estado del chat flotante
-if "chat_open" not in st.session_state:
-    st.session_state.chat_open = False
-
-# --- 2. DISEÑO CSS ROBUSTO (CORREGIDO ESPAÑOL) ---
+# --- 2. DISEÑO CSS ROBUSTO ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -53,12 +49,12 @@ st.markdown("""
     div[data-testid="stMetric"] { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }
     div[data-testid="stMetricValue"] { font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }
     
-    /* --- CHAT FLOTANTE FIJO (ESTABLE) --- */
+    /* --- CHAT FLOTANTE (UBICACIÓN: SUPERIOR DERECHA) --- */
     div.floating-chat-container {
         position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 400px;
+        top: 80px; /* Separado del techo para no tapar el menú de Streamlit */
+        right: 30px;
+        width: 380px;
         z-index: 9999;
         background-color: white;
         border-radius: 15px;
@@ -66,72 +62,35 @@ st.markdown("""
         border: 1px solid #e2e8f0;
     }
     
-    /* --- HACKS PARA TRADUCIR EL FILE UPLOADER (CORREGIDO) --- */
-    
-    /* 1. Ocultar textos originales usando visibilidad y tamaño */
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child {
-        visibility: hidden;
-        height: 0px !important;
-    }
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) {
-        visibility: hidden;
-        height: 0px !important;
-    }
-    
-    /* 2. Insertar texto en español */
+    /* Hacks para traducir el cargador de archivos */
+    [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child { visibility: hidden; height: 0px !important; }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) { visibility: hidden; height: 0px !important; }
     [data-testid="stFileUploaderDropzoneInstructions"]::before {
         content: "Arrastra y suelta archivos aquí";
-        visibility: visible;
-        display: block;
-        text-align: center;
-        font-size: 16px;
-        font-weight: 600;
-        color: #4b5563;
-        margin-bottom: 5px;
+        visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px;
     }
-    
     [data-testid="stFileUploaderDropzoneInstructions"]::after {
         content: "Límite de 200MB por archivo";
-        visibility: visible;
-        display: block;
-        text-align: center;
-        font-size: 12px;
-        color: #9ca3af;
+        visibility: visible; display: block; text-align: center; font-size: 12px; color: #9ca3af;
     }
-
-    /* 3. Traducir botón */
-    section[data-testid="stFileUploader"] button {
-        color: transparent !important;
-    }
-    section[data-testid="stFileUploader"] button::after {
-        content: "Buscar archivos";
-        color: #31333F;
-        position: absolute;
-        left: 0;
-        right: 0;
-        text-align: center;
-    }
+    section[data-testid="stFileUploader"] button { color: transparent !important; }
+    section[data-testid="stFileUploader"] button::after { content: "Buscar archivos"; color: #31333F; position: absolute; left: 0; right: 0; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. FUNCIONES DE CARGA Y NORMALIZACIÓN ---
 
 def cargar_google_sheet(url):
-    """Convierte un enlace de Google Sheets en un DataFrame"""
     try:
-        # Extraer el ID de la hoja
         pattern = r"/d/([a-zA-Z0-9-_]+)"
         match = re.search(pattern, url)
         if match:
             sheet_id = match.group(1)
-            # URL de exportación a CSV
             csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
             df = pd.read_csv(csv_url)
             return df, None
-        else:
-            return None, "El enlace no parece ser de Google Sheets."
-    except Exception as e:
-        return None, f"Error al acceder al Sheet (Asegúrate de que sea público): {e}"
+        else: return None, "Enlace no válido."
+    except Exception as e: return None, f"Error: {e}"
 
 def limpiar_excel_inteligente(uploaded_file):
     try:
@@ -152,7 +111,7 @@ def limpiar_excel_inteligente(uploaded_file):
             df.columns = [str(c).strip() for c in df.columns]
             df = df.dropna(how='all')
             return df, None
-        return None, "No se pudo leer el archivo. Intenta revisar el formato."
+        return None, "Error de formato."
     except Exception as e: return None, str(e)
 
 def normalizar_texto(texto):
@@ -388,7 +347,7 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🔄 Reiniciar Todo"): st.session_state.clear(); st.rerun()
 
-# --- CHAT FLOTANTE ESTABLE ---
+# --- CHAT FLOTANTE ESTABLE (TOP RIGHT) ---
 st.markdown('<div class="floating-chat-container">', unsafe_allow_html=True)
 with st.expander("🤖 Asistente IA (Clic para abrir)", expanded=False):
     if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Hola, ¿qué analizamos?"}]
