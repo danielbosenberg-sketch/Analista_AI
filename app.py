@@ -117,6 +117,7 @@ def detectar_mapa_completo(df):
     mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula', 'rut', 'dni', 'identificacion', 'cif'], ['nom', 'razon', 'prod', 'fac'])
     mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador'], ['id', 'cod', 'nit'])
     
+    # Detección de Producto mejorada con Fallback
     mapa['producto_id'] = buscar_columna_por_puntos(df, ['id_producto', 'sku', 'codigo', 'referencia', 'ref', 'ean', 'item_id'], ['nom', 'desc', 'cli'])
     mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material', 'concepto'], ['id', 'cod', 'sku', 'ref'])
     
@@ -218,6 +219,7 @@ def calcular_kpis(df, mapa):
         kpis['top_clientes'] = df.groupby(col_cli_n)[col_venta].sum().sort_values(ascending=False).head(5)
     else: kpis['top_clientes'] = None
     
+    # Costo y Margen
     col_costo = buscar_columna_por_puntos(df, ['costo', 'compra'], [])
     if col_costo and col_venta:
         if df[col_costo].dtype == 'object':
@@ -408,6 +410,7 @@ if "df_raw" in st.session_state:
                 df_p = kpis['top_productos'].reset_index()
                 col_n = df_p.columns[0]
                 val_col = df_p.columns[1] 
+                # AQUÍ ESTÁ EL COLOR POR VALOR PARA PRODUCTOS
                 fig = px.bar(df_p, x=val_col, y=col_n, orientation='h', title="Top Productos", color=val_col, color_continuous_scale='Blues')
                 st.plotly_chart(fig, use_container_width=True)
                 explicar_visualizacion("Top Productos", df_p.to_string(), "k1")
@@ -419,6 +422,7 @@ if "df_raw" in st.session_state:
                 df_c = kpis['top_clientes'].reset_index()
                 col_n = df_c.columns[0]
                 val_col = df_c.columns[1]
+                # AQUÍ ESTÁ EL COLOR POR VALOR PARA CLIENTES
                 fig = px.bar(df_c, x=val_col, y=col_n, orientation='h', title="Top Clientes", color=val_col, color_continuous_scale='Greens')
                 st.plotly_chart(fig, use_container_width=True)
                 explicar_visualizacion("Top Clientes", df_c.to_string(), "k2")
@@ -451,21 +455,22 @@ if "df_raw" in st.session_state:
             
         hist = obtener_historia()
         if not hist.empty:
-            # FIX DECODIFICACIÓN ROBUSTO
-            for col in hist.columns:
-                if hist[col].dtype == 'object':
-                    # Función segura que intenta todo para no fallar
-                    def limpiar_valor(valor):
-                        try:
-                            if isinstance(valor, bytes):
-                                return valor.decode('latin-1', errors='replace')
-                            return str(valor).encode('utf-8', 'replace').decode('utf-8')
-                        except:
-                            return str(valor)
-                    
-                    hist[col] = hist[col].apply(limpiar_valor)
+            # FIX SEGURO DE DECODIFICACIÓN (ELEMENTO POR ELEMENTO)
+            def limpiar_celda(valor):
+                if valor is None: return ""
+                if isinstance(valor, (int, float)): return valor
+                if isinstance(valor, bytes):
+                    try: return valor.decode('utf-8')
+                    except: return str(valor)
+                return str(valor)
 
-            st.dataframe(hist)
+            # Iterar y limpiar solo columnas de texto para no romper el resto
+            hist_display = hist.copy()
+            for col in hist_display.columns:
+                if hist_display[col].dtype == 'object':
+                    hist_display[col] = hist_display[col].apply(limpiar_celda)
+
+            st.dataframe(hist_display)
             if st.button("Borrar Historial"):
                 borrar_historia()
                 st.rerun()
