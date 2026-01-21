@@ -25,7 +25,11 @@ try:
 except Exception as e:
     st.error(f"Error base de datos: {e}")
 
-# --- 2. DISEÑO CSS ROBUSTO ---
+# Inicializar estado del chat flotante
+if "chat_open" not in st.session_state:
+    st.session_state.chat_open = False
+
+# --- 2. DISEÑO CSS ROBUSTO (CORREGIDO ESPAÑOL) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -50,7 +54,6 @@ st.markdown("""
     div[data-testid="stMetricValue"] { font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }
     
     /* --- CHAT FLOTANTE FIJO (ESTABLE) --- */
-    /* Esto fuerza al último expander a flotar abajo a la derecha */
     div.floating-chat-container {
         position: fixed;
         bottom: 20px;
@@ -63,17 +66,72 @@ st.markdown("""
         border: 1px solid #e2e8f0;
     }
     
-    /* Hacks para traducir el cargador de archivos */
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(1) { color: transparent; }
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(1)::after { content: "Arrastra y suelta archivos aquí"; color: #4b5563; position: absolute; left: 0; right: 0; }
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) { color: transparent; }
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2)::after { content: "Límite de 200MB por archivo"; color: #6b7280; font-size: 12px; position: absolute; left: 0; right: 0; }
-    section[data-testid="stFileUploader"] button { color: transparent !important; }
-    section[data-testid="stFileUploader"] button::after { content: "Buscar archivos"; color: #31333F; position: absolute; left: 0; right: 0; text-align: center; }
+    /* --- HACKS PARA TRADUCIR EL FILE UPLOADER (CORREGIDO) --- */
+    
+    /* 1. Ocultar textos originales usando visibilidad y tamaño */
+    [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child {
+        visibility: hidden;
+        height: 0px !important;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) {
+        visibility: hidden;
+        height: 0px !important;
+    }
+    
+    /* 2. Insertar texto en español */
+    [data-testid="stFileUploaderDropzoneInstructions"]::before {
+        content: "Arrastra y suelta archivos aquí";
+        visibility: visible;
+        display: block;
+        text-align: center;
+        font-size: 16px;
+        font-weight: 600;
+        color: #4b5563;
+        margin-bottom: 5px;
+    }
+    
+    [data-testid="stFileUploaderDropzoneInstructions"]::after {
+        content: "Límite de 200MB por archivo";
+        visibility: visible;
+        display: block;
+        text-align: center;
+        font-size: 12px;
+        color: #9ca3af;
+    }
+
+    /* 3. Traducir botón */
+    section[data-testid="stFileUploader"] button {
+        color: transparent !important;
+    }
+    section[data-testid="stFileUploader"] button::after {
+        content: "Buscar archivos";
+        color: #31333F;
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. FUNCIONES DE CARGA Y NORMALIZACIÓN ---
+
+def cargar_google_sheet(url):
+    """Convierte un enlace de Google Sheets en un DataFrame"""
+    try:
+        # Extraer el ID de la hoja
+        pattern = r"/d/([a-zA-Z0-9-_]+)"
+        match = re.search(pattern, url)
+        if match:
+            sheet_id = match.group(1)
+            # URL de exportación a CSV
+            csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+            df = pd.read_csv(csv_url)
+            return df, None
+        else:
+            return None, "El enlace no parece ser de Google Sheets."
+    except Exception as e:
+        return None, f"Error al acceder al Sheet (Asegúrate de que sea público): {e}"
 
 def limpiar_excel_inteligente(uploaded_file):
     try:
@@ -293,7 +351,7 @@ def formatear_fecha_es(dt):
 
 # --- 8. UI PRINCIPAL ---
 
-# SIDEBAR (SOLO LOGO Y AJUSTES)
+# SIDEBAR: HEADER, UPLOADER, SETTINGS
 with st.sidebar:
     st.markdown("""
     <div class="header-container">
@@ -301,6 +359,26 @@ with st.sidebar:
         <p class="header-subtitle">Inteligencia de Negocios</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # --- OPCIONES DE CARGA ---
+    st.markdown("### 📂 Carga de Datos")
+    tipo_fuente = st.radio("Selecciona fuente:", ["Subir Archivo", "Google Sheets"], index=0)
+    
+    uploaded_files = None
+    df_google = None
+    
+    if tipo_fuente == "Subir Archivo":
+        uploaded_files = st.file_uploader("Arrastra tu archivo aquí", accept_multiple_files=True)
+    else:
+        st.info("Asegúrate de que el Google Sheet sea público (Cualquiera con el enlace).")
+        sheet_url = st.text_input("Pega el enlace de Google Sheets:")
+        if sheet_url:
+            with st.spinner("Descargando de Google..."):
+                df_google, err_g = cargar_google_sheet(sheet_url)
+                if err_g: st.error(err_g)
+                else: st.success("✅ ¡Datos cargados exitosamente!")
+
+    st.markdown("---")
     
     with st.expander("⚙️ Ajustes"):
         try: clave_guardada = st.secrets["GOOGLE_API_KEY"]
@@ -310,23 +388,60 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🔄 Reiniciar Todo"): st.session_state.clear(); st.rerun()
 
-# --- CARGA DE ARCHIVOS (PANEL PRINCIPAL) ---
-uploaded_files = st.file_uploader("📂 Sube tus archivos (Excel/CSV)", accept_multiple_files=True)
-
-if uploaded_files:
-    current_names = [f.name for f in uploaded_files]
-    if st.session_state.get("last_files") != current_names:
-        all_dfs = []
-        for f in uploaded_files:
-            df, err = limpiar_excel_inteligente(f)
-            if df is not None: all_dfs.append(df)
-            else: st.error(f"Error {f.name}: {err}")
+# --- CHAT FLOTANTE ESTABLE ---
+st.markdown('<div class="floating-chat-container">', unsafe_allow_html=True)
+with st.expander("🤖 Asistente IA (Clic para abrir)", expanded=False):
+    if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Hola, ¿qué analizamos?"}]
+    
+    for m in st.session_state.messages:
+        st.chat_message(m["role"]).write(m["content"])
+    
+    if user_query := st.chat_input("Pregunta..."):
+        st.session_state.messages.append({"role": "user", "content": user_query})
+        st.chat_message("user").write(user_query)
         
-        if all_dfs:
-            df_final = pd.concat(all_dfs, ignore_index=True)
-            st.session_state["df_raw"] = df_final
-            st.session_state["last_files"] = current_names
-            st.session_state["mapa"] = detecting_mapa_completo(df_final) if "detecting_mapa_completo" in globals() else detectar_mapa_completo(df_final)
+        with st.chat_message("assistant"):
+            with st.spinner("Pensando..."):
+                if not api_key:
+                    resp = "🔒 Configura tu API Key en el menú lateral."
+                elif "df_raw" in st.session_state:
+                    resp = agente_inteligente_langchain(st.session_state["df_raw"], user_query, api_key)
+                else:
+                    try:
+                        os.environ["GOOGLE_API_KEY"] = api_key
+                        llm_chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+                        resp = llm_chat.invoke(user_query).content
+                    except Exception as e: resp = f"Error: {e}"
+                
+                st.write(resp)
+                st.session_state.messages.append({"role": "assistant", "content": resp})
+st.markdown('</div>', unsafe_allow_html=True)
+
+# LÓGICA DE PROCESAMIENTO (ARCHIVOS LOCALES O GOOGLE SHEETS)
+if uploaded_files or df_google is not None:
+    # Caso 1: Archivos locales
+    if uploaded_files:
+        current_names = [f.name for f in uploaded_files]
+        if st.session_state.get("last_files") != current_names:
+            all_dfs = []
+            for f in uploaded_files:
+                df, err = limpiar_excel_inteligente(f)
+                if df is not None: all_dfs.append(df)
+                else: st.error(f"Error {f.name}: {err}")
+            
+            if all_dfs:
+                df_final = pd.concat(all_dfs, ignore_index=True)
+                st.session_state["df_raw"] = df_final
+                st.session_state["last_files"] = current_names
+                st.session_state["mapa"] = detecting_mapa_completo(df_final) if "detecting_mapa_completo" in globals() else detectar_mapa_completo(df_final)
+                st.rerun()
+    
+    # Caso 2: Google Sheets
+    elif df_google is not None:
+        if "df_raw" not in st.session_state or st.session_state.get("last_url") != sheet_url:
+            st.session_state["df_raw"] = df_google
+            st.session_state["last_url"] = sheet_url
+            st.session_state["mapa"] = detectar_mapa_completo(df_google)
             st.rerun()
 
 if "df_raw" in st.session_state:
@@ -416,36 +531,3 @@ if "df_raw" in st.session_state:
                 if hist_display[col].dtype == 'object': hist_display[col] = hist_display[col].apply(limpiar_celda)
             st.dataframe(hist_display)
             if st.button("Borrar Historial"): borrar_historia(); st.rerun()
-
-# --- CHAT FLOTANTE ESTABLE (CSS PURO) ---
-# Creamos un contenedor que CSS posicionará fijo en la esquina
-st.markdown('<div class="floating-chat-container">', unsafe_allow_html=True)
-with st.expander("🤖 Asistente IA (Clic para abrir)", expanded=False):
-    if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Hola, ¿qué analizamos?"}]
-    
-    # Mostrar historial
-    for m in st.session_state.messages:
-        st.chat_message(m["role"]).write(m["content"])
-    
-    # Input
-    if user_query := st.chat_input("Pregunta..."):
-        st.session_state.messages.append({"role": "user", "content": user_query})
-        st.chat_message("user").write(user_query)
-        
-        # Respuesta IA
-        with st.chat_message("assistant"):
-            with st.spinner("Pensando..."):
-                if not api_key:
-                    resp = "🔒 Configura tu API Key en el menú lateral."
-                elif "df_raw" in st.session_state:
-                    resp = agente_inteligente_langchain(st.session_state["df_raw"], user_query, api_key)
-                else:
-                    try:
-                        os.environ["GOOGLE_API_KEY"] = api_key
-                        llm_chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
-                        resp = llm_chat.invoke(user_query).content
-                    except Exception as e: resp = f"Error: {e}"
-                
-                st.write(resp)
-                st.session_state.messages.append({"role": "assistant", "content": resp})
-st.markdown('</div>', unsafe_allow_html=True)
