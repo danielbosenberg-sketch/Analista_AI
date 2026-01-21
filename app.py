@@ -46,8 +46,6 @@ st.markdown("""
     .audit-title { color: #be123c; font-weight: 700; display: flex; align-items: center; gap: 8px; font-size: 16px; margin-bottom: 10px; }
     .audit-item { color: #881337; font-size: 14px; margin-bottom: 5px; margin-left: 25px; list-style-type: disc; }
     
-    .manual-map-box { background-color: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-
     section[data-testid="stSidebar"] { background-color: white; border-right: 1px solid #f1f5f9; }
 </style>
 """, unsafe_allow_html=True)
@@ -119,7 +117,6 @@ def detectar_mapa_completo(df):
     mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula', 'rut', 'dni', 'identificacion', 'cif'], ['nom', 'razon', 'prod', 'fac'])
     mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador'], ['id', 'cod', 'nit'])
     
-    # Detección de Producto mejorada con Fallback
     mapa['producto_id'] = buscar_columna_por_puntos(df, ['id_producto', 'sku', 'codigo', 'referencia', 'ref', 'ean', 'item_id'], ['nom', 'desc', 'cli'])
     mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material', 'concepto'], ['id', 'cod', 'sku', 'ref'])
     
@@ -411,7 +408,6 @@ if "df_raw" in st.session_state:
                 df_p = kpis['top_productos'].reset_index()
                 col_n = df_p.columns[0]
                 val_col = df_p.columns[1] 
-                # AQUÍ ESTÁ EL COLOR POR VALOR PARA PRODUCTOS
                 fig = px.bar(df_p, x=val_col, y=col_n, orientation='h', title="Top Productos", color=val_col, color_continuous_scale='Blues')
                 st.plotly_chart(fig, use_container_width=True)
                 explicar_visualizacion("Top Productos", df_p.to_string(), "k1")
@@ -423,7 +419,6 @@ if "df_raw" in st.session_state:
                 df_c = kpis['top_clientes'].reset_index()
                 col_n = df_c.columns[0]
                 val_col = df_c.columns[1]
-                # AQUÍ ESTÁ EL COLOR POR VALOR PARA CLIENTES
                 fig = px.bar(df_c, x=val_col, y=col_n, orientation='h', title="Top Clientes", color=val_col, color_continuous_scale='Greens')
                 st.plotly_chart(fig, use_container_width=True)
                 explicar_visualizacion("Top Clientes", df_c.to_string(), "k2")
@@ -456,13 +451,19 @@ if "df_raw" in st.session_state:
             
         hist = obtener_historia()
         if not hist.empty:
-            # FIX PARA EL ERROR DECODING: Limpiar dataframe antes de mostrar
+            # FIX DECODIFICACIÓN ROBUSTO
             for col in hist.columns:
                 if hist[col].dtype == 'object':
-                    try:
-                        hist[col] = hist[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8'))
-                    except:
-                        hist[col] = hist[col].astype(str)
+                    # Función segura que intenta todo para no fallar
+                    def limpiar_valor(valor):
+                        try:
+                            if isinstance(valor, bytes):
+                                return valor.decode('latin-1', errors='replace')
+                            return str(valor).encode('utf-8', 'replace').decode('utf-8')
+                        except:
+                            return str(valor)
+                    
+                    hist[col] = hist[col].apply(limpiar_valor)
 
             st.dataframe(hist)
             if st.button("Borrar Historial"):
