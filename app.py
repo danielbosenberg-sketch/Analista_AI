@@ -19,14 +19,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicializar DB y Estado
+# Inicializar DB
 try: init_db()
 except Exception as e: st.error(f"Error base de datos: {e}")
 
 if "chat_open" not in st.session_state: st.session_state.chat_open = False
 
-# --- 2. SIDEBAR (CONFIGURACIÓN Y POSICIÓN) ---
-# Definimos el sidebar ANTES del CSS para poder usar las variables en el estilo
+# --- 2. SIDEBAR (CARGA, AJUSTES Y POSICIÓN) ---
 with st.sidebar:
     st.markdown("""
     <div class="header-container">
@@ -35,9 +34,9 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # OPCIONES DE CARGA
+    # --- CARGA DE DATOS ---
     st.markdown("### 📂 Carga de Datos")
-    tipo_fuente = st.radio("Selecciona fuente:", ["Subir Archivo", "Google Sheets"], index=0)
+    tipo_fuente = st.radio("Fuente:", ["Subir Archivo", "Google Sheets"], index=0)
     
     uploaded_files = None
     df_google = None
@@ -45,59 +44,53 @@ with st.sidebar:
     if tipo_fuente == "Subir Archivo":
         uploaded_files = st.file_uploader("Arrastra archivos aquí", accept_multiple_files=True)
     else:
-        st.info("El Google Sheet debe ser público.")
-        sheet_url = st.text_input("Pega el enlace aquí:")
+        st.info("El sheet debe ser público.")
+        sheet_url = st.text_input("Enlace Google Sheets:")
 
     st.markdown("---")
     
-    # AJUSTES (API KEY + POSICIÓN CHAT)
+    # --- AJUSTES ---
     with st.expander("⚙️ Ajustes", expanded=True):
         try: clave_guardada = st.secrets["GOOGLE_API_KEY"]
         except: clave_guardada = ""
         api_key = st.text_input("API Key", value=clave_guardada, type="password", key="api_key_input")
         
-        # --- SELECTOR DE POSICIÓN DEL CHAT ---
-        pos_chat = st.selectbox("Posición del Chat", 
-                                ["Abajo-Derecha", "Abajo-Izquierda", "Arriba-Derecha", "Arriba-Izquierda"], 
+        # SELECTOR DE POSICIÓN DEL CHAT
+        pos_chat = st.selectbox("Posición Asistente", 
+                                ["Arriba-Derecha", "Abajo-Derecha", "Abajo-Izquierda", "Arriba-Izquierda"], 
                                 index=0)
         
-        if st.button("Borrar Conversación"): st.session_state.messages = []; st.rerun()
+        if st.button("Borrar Chat"): st.session_state.messages = []; st.rerun()
 
     st.markdown("---")
-    if st.button("🔄 Reiniciar Todo"): st.session_state.clear(); st.rerun()
+    if st.button("🔄 Reiniciar App"): st.session_state.clear(); st.rerun()
 
-# --- 3. LÓGICA DE POSICIONAMIENTO CSS ---
-# Calculamos las coordenadas CSS según la selección del usuario
-css_position = ""
-if pos_chat == "Abajo-Derecha":
-    css_position = "bottom: 20px; right: 20px;"
-elif pos_chat == "Abajo-Izquierda":
-    css_position = "bottom: 20px; left: 20px;"
-elif pos_chat == "Arriba-Derecha":
-    css_position = "top: 100px; right: 20px;"
-elif pos_chat == "Arriba-Izquierda":
-    css_position = "top: 100px; left: 20px;"
+# --- 3. LÓGICA CSS DINÁMICA ---
+css_pos = ""
+if pos_chat == "Abajo-Derecha": css_pos = "bottom: 20px; right: 20px;"
+elif pos_chat == "Abajo-Izquierda": css_pos = "bottom: 20px; left: 20px;"
+elif pos_chat == "Arriba-Derecha": css_pos = "top: 80px; right: 20px;"
+elif pos_chat == "Arriba-Izquierda": css_pos = "top: 80px; left: 20px;"
 
-# --- 4. DISEÑO CSS ROBUSTO ---
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
     html, body, [class*="css"] {{ font-family: 'Outfit', sans-serif; color: #1e293b; }}
     .stApp {{ background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }}
     
-    /* HEADER SIDEBAR */
+    /* HEADER */
     .header-container {{ background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); }}
     .header-title {{ font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }}
-    .header-subtitle {{ font-size: 14px; opacity: 0.9; font-weight: 300; margin-top: 5px; line-height: 1.2; }}
+    .header-subtitle {{ font-size: 14px; opacity: 0.9; font-weight: 300; margin-top: 5px; }}
 
     /* METRICAS */
     div[data-testid="stMetric"] {{ background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }}
     div[data-testid="stMetricValue"] {{ font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }}
     
-    /* --- CHAT FLOTANTE DINÁMICO --- */
+    /* CHAT FLOTANTE */
     div.floating-chat-container {{
         position: fixed;
-        {css_position} /* AQUI SE INYECTA LA POSICIÓN ELEGIDA */
+        {css_pos}
         width: 380px;
         z-index: 9999;
         background-color: white;
@@ -106,17 +99,17 @@ st.markdown(f"""
         border: 1px solid #e2e8f0;
     }}
     
-    /* TRADUCCIÓN FILE UPLOADER */
+    /* UPLOADER ESPAÑOL */
     [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child {{ visibility: hidden; height: 0px !important; }}
     [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) {{ visibility: hidden; height: 0px !important; }}
-    [data-testid="stFileUploaderDropzoneInstructions"]::before {{ content: "Arrastra y suelta archivos aquí"; visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px; }}
-    [data-testid="stFileUploaderDropzoneInstructions"]::after {{ content: "Límite de 200MB por archivo"; visibility: visible; display: block; text-align: center; font-size: 12px; color: #9ca3af; }}
+    [data-testid="stFileUploaderDropzoneInstructions"]::before {{ content: "Arrastra archivos aquí"; visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px; }}
+    [data-testid="stFileUploaderDropzoneInstructions"]::after {{ content: "Límite 200MB"; visibility: visible; display: block; text-align: center; font-size: 12px; color: #9ca3af; }}
     section[data-testid="stFileUploader"] button {{ color: transparent !important; }}
     section[data-testid="stFileUploader"] button::after {{ content: "Buscar archivos"; color: #31333F; position: absolute; left: 0; right: 0; text-align: center; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 5. FUNCIONES ---
+# --- 4. FUNCIONES DE LÓGICA ---
 
 def cargar_google_sheet(url):
     try:
@@ -169,28 +162,45 @@ def buscar_columna_por_puntos(df, keywords_pos, keywords_neg=[]):
 
 def detectar_mapa_completo(df):
     mapa = {}
-    mapa['factura'] = buscar_columna_por_puntos(df, ['factura', 'invoice', 'consecutivo'], ['fecha'])
-    mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula'], ['nom'])
-    mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon'], ['id'])
-    mapa['producto_id'] = buscar_columna_por_puntos(df, ['id_producto', 'sku', 'codigo'], ['nom'])
-    mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion'], ['id'])
+    mapa['factura'] = buscar_columna_por_puntos(df, ['factura', 'invoice', 'consecutivo', 'folio', 'ticket', 'documento'], ['fecha'])
+    mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula', 'rut', 'dni', 'identificacion', 'cif'], ['nom', 'razon'])
+    mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador'], ['id', 'cod', 'nit'])
+    mapa['producto_id'] = buscar_columna_por_puntos(df, ['id_producto', 'sku', 'codigo', 'referencia', 'ref', 'ean', 'item'], ['nom', 'desc', 'cli'])
+    mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material'], ['id', 'cod', 'sku'])
     if not mapa['producto_nom']: mapa['producto_nom'] = mapa['producto_id']
-    mapa['venta'] = buscar_columna_por_puntos(df, ['total', 'venta', 'importe', 'precio'], ['unitario'])
-    mapa['fecha'] = buscar_columna_por_puntos(df, ['fecha', 'date', 'dia'], ['venc'])
+    mapa['venta'] = buscar_columna_por_puntos(df, ['total', 'venta', 'importe', 'monto', 'valor', 'precio'], ['unitario', 'impuesto', 'cantidad'])
+    mapa['fecha'] = buscar_columna_por_puntos(df, ['fecha', 'date', 'dia', 'registro'], ['venc'])
     if not mapa['venta']: mapa['venta'] = buscar_columna_por_puntos(df, ['precio', 'valor'], [])
     return mapa
 
 def auditar_calidad_datos(df, mapa):
     conflictos = []
-    col_cli_nom = mapa.get('cliente_nom'); col_cli_id = mapa.get('cliente_id')
-    col_fact = mapa.get('factura'); col_ref = col_cli_nom if col_cli_nom else col_cli_id
+    # Recuperamos columnas detectadas
+    col_cli_nom = mapa.get('cliente_nom')
+    col_cli_id = mapa.get('cliente_id')
+    col_fact = mapa.get('factura')
+    col_ref = col_cli_nom if col_cli_nom else col_cli_id # Referencia para facturas
+
+    # 1. Auditoría de Identidad (Un Nombre = Un ID)
     if col_cli_nom and col_cli_id:
-        dup = df.groupby(col_cli_nom)[col_cli_id].nunique()
-        for n, c in dup[dup>1].items(): conflictos.append(f"🔴 <b>Identidad:</b> '{n}' tiene {c} IDs.")
+        try:
+            df_tmp = df[[col_cli_nom, col_cli_id]].astype(str)
+            dup = df_tmp.groupby(col_cli_nom)[col_cli_id].nunique()
+            for nombre, cuenta in dup[dup > 1].items():
+                conflictos.append(f"🔴 <b>Identidad:</b> '{nombre}' tiene {cuenta} IDs diferentes.")
+        except: pass
+    
+    # 2. Auditoría de Facturas (Una Factura = Un Cliente)
     if col_fact and col_ref:
-        dup = df.groupby(col_fact)[col_ref].nunique()
-        for f, c in dup[dup>1].items(): conflictos.append(f"🧾 <b>Error Factura:</b> '{f}' asignada a {c} clientes.")
-    elif not col_fact: conflictos.append("⚠️ Falta columna Factura.")
+        try:
+            df_tmp = df[[col_fact, col_ref]].astype(str)
+            dup = df_tmp.groupby(col_fact)[col_ref].nunique()
+            for fact, cuenta in dup[dup > 1].items():
+                conflictos.append(f"🧾 <b>Error Factura:</b> '{fact}' asignada a {cuenta} clientes distintos.")
+        except: pass
+    elif not col_fact:
+        conflictos.append("⚠️ No se pudo auditar facturas: No se detectó columna de Factura.")
+
     return conflictos
 
 def calcular_kpis(df, mapa):
@@ -260,8 +270,10 @@ def generar_excel_descarga(df):
 
 def formatear_fecha_es(dt):
     if not isinstance(dt, datetime): return "N/A"
-    meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    return f"{meses[dt.month]} {dt.day:02d} de {dt.year}"
+    try:
+        meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        return f"{meses[dt.month]} {dt.day:02d} de {dt.year}"
+    except: return str(dt)
 
 def explicar_visualizacion(titulo, datos, key):
     api_key_val = st.session_state.get("api_key_input", "") or st.secrets.get("GOOGLE_API_KEY", "")
@@ -284,9 +296,9 @@ def solucionar_conflictos_ia(lista_errores):
             st.info(llm.invoke(f"Da pasos para corregir en Excel: {str(lista_errores[:10])}").content)
         except Exception as e: st.error(str(e))
 
-# --- 6. RENDERIZADO DEL CHAT (POSICIONABLE) ---
+# --- 5. RENDERIZADO DEL CHAT (DINÁMICO) ---
 st.markdown('<div class="floating-chat-container">', unsafe_allow_html=True)
-with st.expander("🤖 Asistente IA (Clic para abrir)", expanded=False):
+with st.expander("🤖 Asistente IA (Clic)", expanded=False):
     if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Hola, ¿qué analizamos?"}]
     for m in st.session_state.messages: st.chat_message(m["role"]).write(m["content"])
     
@@ -301,7 +313,7 @@ with st.expander("🤖 Asistente IA (Clic para abrir)", expanded=False):
                 st.session_state.messages.append({"role": "assistant", "content": resp})
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 7. LOGICA PRINCIPAL DE DATOS ---
+# --- 6. LOGICA PRINCIPAL DE DATOS ---
 if uploaded_files or df_google is not None:
     if uploaded_files:
         current_names = [f.name for f in uploaded_files]
@@ -325,13 +337,19 @@ if "df_raw" in st.session_state:
     kpis = calcular_kpis(df, st.session_state["mapa"])
     conflictos = auditar_calidad_datos(df, st.session_state["mapa"])
     
+    # --- SECCIÓN AUDITORÍA RESTAURADA ---
     n_conflicts = len(conflictos)
-    label_exp = f"⚠️ Auditoría: {n_conflicts} conflictos" if n_conflicts > 0 else "✅ Auditoría: OK"
+    label_exp = f"⚠️ Auditoría: {n_conflicts} conflictos" if n_conflicts > 0 else "✅ Auditoría: Datos Limpios"
     with st.expander(label_exp, expanded=(n_conflicts > 0)):
         if n_conflicts > 0:
             if st.button("✨ Ayuda IA"): solucionar_conflictos_ia(conflictos)
             for c in conflictos: st.markdown(f'<div class="audit-item">{c}</div>', unsafe_allow_html=True)
-        else: st.success("Datos limpios.")
+        else: st.success("No se encontraron duplicados ni errores lógicos graves.")
+        
+        # DEBUG RESTAURADO: PARA VER QUÉ ESTÁ LEYENDO LA IA
+        with st.expander("🕵️ Ver columnas detectadas (Debug)"):
+            st.write("Si la auditoría falla, revisa si las columnas clave (ID, Factura) están aquí:")
+            st.json(st.session_state["mapa"])
 
     tipo, msg = kpis.get('alerta', ("neutral", ""))
     st.markdown(f'<div class="custom-alert alert-{tipo}">{msg}</div>', unsafe_allow_html=True)
