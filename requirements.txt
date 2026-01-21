@@ -1,0 +1,9 @@
+streamlit
+pandas
+openpyxl
+duckdb
+openai
+langchain
+langchain-experimental
+langchain-openai
+langchain-google-genai
