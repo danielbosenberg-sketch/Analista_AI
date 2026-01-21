@@ -25,91 +25,54 @@ except Exception as e: st.error(f"Error base de datos: {e}")
 
 if "chat_open" not in st.session_state: st.session_state.chat_open = False
 
-# --- 2. SIDEBAR (CARGA, AJUSTES Y POSICIÓN) ---
-with st.sidebar:
-    st.markdown("""
-    <div class="header-container">
-        <p class="header-title">Analítica Pro 🚀</p>
-        <p class="header-subtitle">Inteligencia de Negocios</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # --- CARGA DE DATOS ---
-    st.markdown("### 📂 Carga de Datos")
-    tipo_fuente = st.radio("Fuente:", ["Subir Archivo", "Google Sheets"], index=0)
-    
-    uploaded_files = None
-    df_google = None
-    
-    if tipo_fuente == "Subir Archivo":
-        uploaded_files = st.file_uploader("Arrastra archivos aquí", accept_multiple_files=True)
-    else:
-        st.info("El sheet debe ser público.")
-        sheet_url = st.text_input("Enlace Google Sheets:")
-
-    st.markdown("---")
-    
-    # --- AJUSTES ---
-    with st.expander("⚙️ Ajustes", expanded=True):
-        try: clave_guardada = st.secrets["GOOGLE_API_KEY"]
-        except: clave_guardada = ""
-        api_key = st.text_input("API Key", value=clave_guardada, type="password", key="api_key_input")
-        
-        # SELECTOR DE POSICIÓN DEL CHAT
-        pos_chat = st.selectbox("Posición Asistente", 
-                                ["Arriba-Derecha", "Abajo-Derecha", "Abajo-Izquierda", "Arriba-Izquierda"], 
-                                index=0)
-        
-        if st.button("Borrar Chat"): st.session_state.messages = []; st.rerun()
-
-    st.markdown("---")
-    if st.button("🔄 Reiniciar App"): st.session_state.clear(); st.rerun()
-
-# --- 3. LÓGICA CSS DINÁMICA ---
-css_pos = ""
-if pos_chat == "Abajo-Derecha": css_pos = "bottom: 20px; right: 20px;"
-elif pos_chat == "Abajo-Izquierda": css_pos = "bottom: 20px; left: 20px;"
-elif pos_chat == "Arriba-Derecha": css_pos = "top: 80px; right: 20px;"
-elif pos_chat == "Arriba-Izquierda": css_pos = "top: 80px; left: 20px;"
-
-st.markdown(f"""
+# --- 2. DISEÑO CSS (CHAT ABAJO A LA DERECHA) ---
+st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-    html, body, [class*="css"] {{ font-family: 'Outfit', sans-serif; color: #1e293b; }}
-    .stApp {{ background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }}
+    html, body, [class*="css"] { font-family: 'Outfit', sans-serif; color: #1e293b; }
+    .stApp { background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
     
-    /* HEADER */
-    .header-container {{ background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); }}
-    .header-title {{ font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }}
-    .header-subtitle {{ font-size: 14px; opacity: 0.9; font-weight: 300; margin-top: 5px; }}
+    /* HEADER EN SIDEBAR */
+    .header-container { 
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); 
+        padding: 20px; 
+        border-radius: 15px; 
+        color: white; 
+        text-align: center; 
+        margin-bottom: 20px; 
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); 
+    }
+    .header-title { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
+    .header-subtitle { font-size: 14px; opacity: 0.9; font-weight: 300; margin-top: 5px; line-height: 1.2; }
 
-    /* METRICAS */
-    div[data-testid="stMetric"] {{ background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }}
-    div[data-testid="stMetricValue"] {{ font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }}
+    /* ESTILO DE MÉTRICAS */
+    div[data-testid="stMetric"] { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }
+    div[data-testid="stMetricValue"] { font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }
     
-    /* CHAT FLOTANTE */
-    div.floating-chat-container {{
+    /* --- CHAT FLOTANTE (ESQUINA INFERIOR DERECHA) --- */
+    div.floating-chat-container {
         position: fixed;
-        {css_pos}
+        bottom: 20px;
+        right: 20px;
         width: 380px;
         z-index: 9999;
         background-color: white;
         border-radius: 15px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.15);
         border: 1px solid #e2e8f0;
-    }}
+    }
     
-    /* UPLOADER ESPAÑOL */
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child {{ visibility: hidden; height: 0px !important; }}
-    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) {{ visibility: hidden; height: 0px !important; }}
-    [data-testid="stFileUploaderDropzoneInstructions"]::before {{ content: "Arrastra archivos aquí"; visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px; }}
-    [data-testid="stFileUploaderDropzoneInstructions"]::after {{ content: "Límite 200MB"; visibility: visible; display: block; text-align: center; font-size: 12px; color: #9ca3af; }}
-    section[data-testid="stFileUploader"] button {{ color: transparent !important; }}
-    section[data-testid="stFileUploader"] button::after {{ content: "Buscar archivos"; color: #31333F; position: absolute; left: 0; right: 0; text-align: center; }}
+    /* TRADUCCIÓN FILE UPLOADER */
+    [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child { visibility: hidden; height: 0px !important; }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) { visibility: hidden; height: 0px !important; }
+    [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Arrastra archivos aquí"; visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px; }
+    [data-testid="stFileUploaderDropzoneInstructions"]::after { content: "Límite 200MB"; visibility: visible; display: block; text-align: center; font-size: 12px; color: #9ca3af; }
+    section[data-testid="stFileUploader"] button { color: transparent !important; }
+    section[data-testid="stFileUploader"] button::after { content: "Buscar archivos"; color: #31333F; position: absolute; left: 0; right: 0; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. FUNCIONES DE LÓGICA ---
+# --- 3. FUNCIONES DE LÓGICA ---
 
 def cargar_google_sheet(url):
     try:
@@ -296,7 +259,39 @@ def solucionar_conflictos_ia(lista_errores):
             st.info(llm.invoke(f"Da pasos para corregir en Excel: {str(lista_errores[:10])}").content)
         except Exception as e: st.error(str(e))
 
-# --- 5. RENDERIZADO DEL CHAT (DINÁMICO) ---
+# --- 4. SIDEBAR ---
+with st.sidebar:
+    st.markdown("""
+    <div class="header-container">
+        <p class="header-title">Analítica Pro 🚀</p>
+        <p class="header-subtitle">Inteligencia de Negocios</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### 📂 Carga de Datos")
+    tipo_fuente = st.radio("Fuente:", ["Subir Archivo", "Google Sheets"], index=0)
+    
+    uploaded_files = None
+    df_google = None
+    
+    if tipo_fuente == "Subir Archivo":
+        uploaded_files = st.file_uploader("Arrastra archivos aquí", accept_multiple_files=True)
+    else:
+        st.info("El sheet debe ser público.")
+        sheet_url = st.text_input("Enlace Google Sheets:")
+
+    st.markdown("---")
+    
+    with st.expander("⚙️ Ajustes", expanded=True):
+        try: clave_guardada = st.secrets["GOOGLE_API_KEY"]
+        except: clave_guardada = ""
+        api_key = st.text_input("API Key", value=clave_guardada, type="password", key="api_key_input")
+        if st.button("Borrar Chat"): st.session_state.messages = []; st.rerun()
+
+    st.markdown("---")
+    if st.button("🔄 Reiniciar App"): st.session_state.clear(); st.rerun()
+
+# --- 5. RENDERIZADO DEL CHAT (ESQUINA INFERIOR DERECHA) ---
 st.markdown('<div class="floating-chat-container">', unsafe_allow_html=True)
 with st.expander("🤖 Asistente IA (Clic)", expanded=False):
     if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Hola, ¿qué analizamos?"}]
@@ -313,7 +308,7 @@ with st.expander("🤖 Asistente IA (Clic)", expanded=False):
                 st.session_state.messages.append({"role": "assistant", "content": resp})
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 6. LOGICA PRINCIPAL DE DATOS ---
+# --- 6. LOGICA PRINCIPAL ---
 if uploaded_files or df_google is not None:
     if uploaded_files:
         current_names = [f.name for f in uploaded_files]
@@ -337,7 +332,6 @@ if "df_raw" in st.session_state:
     kpis = calcular_kpis(df, st.session_state["mapa"])
     conflictos = auditar_calidad_datos(df, st.session_state["mapa"])
     
-    # --- SECCIÓN AUDITORÍA RESTAURADA ---
     n_conflicts = len(conflictos)
     label_exp = f"⚠️ Auditoría: {n_conflicts} conflictos" if n_conflicts > 0 else "✅ Auditoría: Datos Limpios"
     with st.expander(label_exp, expanded=(n_conflicts > 0)):
@@ -346,9 +340,9 @@ if "df_raw" in st.session_state:
             for c in conflictos: st.markdown(f'<div class="audit-item">{c}</div>', unsafe_allow_html=True)
         else: st.success("No se encontraron duplicados ni errores lógicos graves.")
         
-        # DEBUG RESTAURADO: PARA VER QUÉ ESTÁ LEYENDO LA IA
-        with st.expander("🕵️ Ver columnas detectadas (Debug)"):
-            st.write("Si la auditoría falla, revisa si las columnas clave (ID, Factura) están aquí:")
+        # DEBUG AUDITORÍA
+        with st.expander("🕵️ Ver columnas detectadas"):
+            st.write("Columnas que el sistema está usando:")
             st.json(st.session_state["mapa"])
 
     tipo, msg = kpis.get('alerta', ("neutral", ""))
