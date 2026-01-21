@@ -1,0 +1,9 @@
+streamlit
+pandas
+plotly
+fpdf
+openpyxl
+xlsxwriter
+langchain-google-genai
+langchain
+google-generativeai
