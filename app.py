@@ -23,9 +23,7 @@ st.set_page_config(
 try: init_db()
 except Exception as e: st.error(f"Error base de datos: {e}")
 
-if "chat_open" not in st.session_state: st.session_state.chat_open = False
-
-# --- 2. DISEÑO CSS (CHAT ABAJO A LA DERECHA) ---
+# --- 2. DISEÑO CSS LIMPIO ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -48,19 +46,6 @@ st.markdown("""
     /* ESTILO DE MÉTRICAS */
     div[data-testid="stMetric"] { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }
     div[data-testid="stMetricValue"] { font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }
-    
-    /* --- CHAT FLOTANTE (ESQUINA INFERIOR DERECHA) --- */
-    div.floating-chat-container {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 380px;
-        z-index: 9999;
-        background-color: white;
-        border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        border: 1px solid #e2e8f0;
-    }
     
     /* TRADUCCIÓN FILE UPLOADER */
     [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child { visibility: hidden; height: 0px !important; }
@@ -248,6 +233,7 @@ def explicar_visualizacion(titulo, datos, key):
                     llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.7)
                     st.success(llm.invoke(f"Analiza brevemente: {titulo}. Datos: {datos}").content)
                 except Exception as e: st.error(str(e))
+    else: st.caption("🔒 Configura API Key.")
 
 def solucionar_conflictos_ia(lista_errores):
     api_key_val = st.session_state.get("api_key_input", "") or st.secrets.get("GOOGLE_API_KEY", "")
@@ -259,7 +245,7 @@ def solucionar_conflictos_ia(lista_errores):
             st.info(llm.invoke(f"Da pasos para corregir en Excel: {str(lista_errores[:10])}").content)
         except Exception as e: st.error(str(e))
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (MINIMALISTA) ---
 with st.sidebar:
     st.markdown("""
     <div class="header-container">
@@ -280,35 +266,17 @@ with st.sidebar:
         st.info("El sheet debe ser público.")
         sheet_url = st.text_input("Enlace Google Sheets:")
 
-    st.markdown("---")
-    
-    with st.expander("⚙️ Ajustes", expanded=True):
-        try: clave_guardada = st.secrets["GOOGLE_API_KEY"]
-        except: clave_guardada = ""
-        api_key = st.text_input("API Key", value=clave_guardada, type="password", key="api_key_input")
-        if st.button("Borrar Chat"): st.session_state.messages = []; st.rerun()
+    # Lógica inteligente para la API Key (Sólo se muestra si no está en secrets)
+    try: 
+        api_key = st.secrets["GOOGLE_API_KEY"]
+    except:
+        st.markdown("---")
+        api_key = st.text_input("🔑 API Key Gemini", type="password", key="api_key_input")
 
     st.markdown("---")
     if st.button("🔄 Reiniciar App"): st.session_state.clear(); st.rerun()
 
-# --- 5. RENDERIZADO DEL CHAT (ESQUINA INFERIOR DERECHA) ---
-st.markdown('<div class="floating-chat-container">', unsafe_allow_html=True)
-with st.expander("🤖 Asistente IA (Clic)", expanded=False):
-    if "messages" not in st.session_state: st.session_state.messages = [{"role": "assistant", "content": "Hola, ¿qué analizamos?"}]
-    for m in st.session_state.messages: st.chat_message(m["role"]).write(m["content"])
-    
-    if user_query := st.chat_input("Pregunta..."):
-        st.session_state.messages.append({"role": "user", "content": user_query})
-        st.chat_message("user").write(user_query)
-        with st.chat_message("assistant"):
-            with st.spinner("Pensando..."):
-                if "df_raw" in st.session_state: resp = agente_inteligente_langchain(st.session_state["df_raw"], user_query, api_key)
-                else: resp = "Sube datos primero para poder responderte con precisión."
-                st.write(resp)
-                st.session_state.messages.append({"role": "assistant", "content": resp})
-st.markdown('</div>', unsafe_allow_html=True)
-
-# --- 6. LOGICA PRINCIPAL ---
+# --- 5. LOGICA PRINCIPAL ---
 if uploaded_files or df_google is not None:
     if uploaded_files:
         current_names = [f.name for f in uploaded_files]
