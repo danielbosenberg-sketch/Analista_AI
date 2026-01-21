@@ -6,4 +6,6 @@ openpyxl
 xlsxwriter
 langchain-google-genai
 langchain
+langchain-experimental
 google-generativeai
+tabulate
