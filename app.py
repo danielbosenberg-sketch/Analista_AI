@@ -23,31 +23,24 @@ st.set_page_config(
 try: init_db()
 except Exception as e: st.error(f"Error base de datos: {e}")
 
-# --- 2. DISEÑO CSS LIMPIO ---
+# --- 2. DISEÑO CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif; color: #1e293b; }
     .stApp { background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
     
-    /* HEADER EN SIDEBAR */
-    .header-container { 
-        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); 
-        padding: 20px; 
-        border-radius: 15px; 
-        color: white; 
-        text-align: center; 
-        margin-bottom: 20px; 
-        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); 
-    }
+    .header-container { background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); }
     .header-title { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
     .header-subtitle { font-size: 14px; opacity: 0.9; font-weight: 300; margin-top: 5px; line-height: 1.2; }
 
-    /* ESTILO DE MÉTRICAS */
     div[data-testid="stMetric"] { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }
     div[data-testid="stMetricValue"] { font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }
     
-    /* TRADUCCIÓN FILE UPLOADER */
+    .chat-panel { background-color: white; border-left: 1px solid #e2e8f0; height: 100%; padding: 1rem; border-radius: 10px; box-shadow: -5px 0 15px rgba(0,0,0,0.02); }
+    .chat-msg-user { background-color: #eff6ff; color: #1e3a8a; padding: 10px; border-radius: 10px 10px 0 10px; margin-bottom: 10px; text-align: right; font-size: 0.9rem; }
+    .chat-msg-ai { background-color: #f1f5f9; color: #334155; padding: 10px; border-radius: 10px 10px 10px 0; margin-bottom: 10px; text-align: left; font-size: 0.9rem; border: 1px solid #e2e8f0; }
+
     [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child { visibility: hidden; height: 0px !important; }
     [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) { visibility: hidden; height: 0px !important; }
     [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Arrastra archivos aquí"; visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px; }
@@ -110,26 +103,21 @@ def buscar_columna_por_puntos(df, keywords_pos, keywords_neg=[]):
 
 def detectar_mapa_completo(df):
     mapa = {}
-    mapa['factura'] = buscar_columna_por_puntos(df, ['factura', 'invoice', 'consecutivo', 'folio', 'ticket', 'documento'], ['fecha'])
-    mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula', 'rut', 'dni', 'identificacion', 'cif'], ['nom', 'razon'])
-    mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador'], ['id', 'cod', 'nit'])
-    mapa['producto_id'] = buscar_columna_por_puntos(df, ['id_producto', 'sku', 'codigo', 'referencia', 'ref', 'ean', 'item'], ['nom', 'desc', 'cli'])
-    mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material'], ['id', 'cod', 'sku'])
-    if not mapa['producto_nom']: mapa['producto_nom'] = mapa['producto_id']
+    mapa['factura'] = buscar_columna_por_puntos(df, ['factura', 'invoice', 'consecutivo', 'folio', 'ticket'], ['fecha'])
+    mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula', 'rut', 'dni'], ['nom', 'razon'])
+    mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador'], ['id', 'cod', 'nit', 'producto'])
+    mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material', 'modelo', 'referencia'], ['id', 'cod', 'sku', 'cliente', 'razon'])
     mapa['venta'] = buscar_columna_por_puntos(df, ['total', 'venta', 'importe', 'monto', 'valor', 'precio'], ['unitario', 'impuesto', 'cantidad'])
     mapa['fecha'] = buscar_columna_por_puntos(df, ['fecha', 'date', 'dia', 'registro'], ['venc'])
-    if not mapa['venta']: mapa['venta'] = buscar_columna_por_puntos(df, ['precio', 'valor'], [])
     return mapa
 
 def auditar_calidad_datos(df, mapa):
     conflictos = []
-    # Recuperamos columnas detectadas
     col_cli_nom = mapa.get('cliente_nom')
     col_cli_id = mapa.get('cliente_id')
     col_fact = mapa.get('factura')
-    col_ref = col_cli_nom if col_cli_nom else col_cli_id # Referencia para facturas
+    col_ref = col_cli_nom if col_cli_nom else col_cli_id 
 
-    # 1. Auditoría de Identidad (Un Nombre = Un ID)
     if col_cli_nom and col_cli_id:
         try:
             df_tmp = df[[col_cli_nom, col_cli_id]].astype(str)
@@ -138,7 +126,6 @@ def auditar_calidad_datos(df, mapa):
                 conflictos.append(f"🔴 <b>Identidad:</b> '{nombre}' tiene {cuenta} IDs diferentes.")
         except: pass
     
-    # 2. Auditoría de Facturas (Una Factura = Un Cliente)
     if col_fact and col_ref:
         try:
             df_tmp = df[[col_fact, col_ref]].astype(str)
@@ -183,6 +170,7 @@ def calcular_kpis(df, mapa):
     col_cli_n = mapa.get('cliente_nom')
     if col_cli_n and col_venta: kpis['top_clientes'] = df.groupby(col_cli_n)[col_venta].sum().sort_values(ascending=False).head(5)
     else: kpis['top_clientes'] = None
+    
     col_costo = buscar_columna_por_puntos(df, ['costo', 'compra'], [])
     if col_costo and col_venta:
         if df[col_costo].dtype == 'object':
@@ -193,13 +181,14 @@ def calcular_kpis(df, mapa):
     else: kpis['ganancia_total'] = None
     return kpis
 
+# --- AGENTE INTELIGENTE ---
 def agente_inteligente_langchain(df, query, api_key):
-    if not api_key: return "🔒 Falta API Key."
+    if not api_key: return "🔒 Por favor configura tu API Key en la barra lateral."
     try:
         llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0, google_api_key=api_key)
         agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True, handle_parsing_errors=True)
         return agent.invoke(query)['output']
-    except Exception as e: return f"Error: {str(e)}"
+    except Exception as e: return f"Error procesando tu pregunta: {str(e)}"
 
 class PDFReport(FPDF):
     def header(self): self.set_font('Arial', 'B', 15); self.cell(0, 10, 'Reporte Ejecutivo', 0, 1, 'C'); self.ln(5)
@@ -245,7 +234,7 @@ def solucionar_conflictos_ia(lista_errores):
             st.info(llm.invoke(f"Da pasos para corregir en Excel: {str(lista_errores[:10])}").content)
         except Exception as e: st.error(str(e))
 
-# --- 4. SIDEBAR (MINIMALISTA) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.markdown("""
     <div class="header-container">
@@ -266,7 +255,32 @@ with st.sidebar:
         st.info("El sheet debe ser público.")
         sheet_url = st.text_input("Enlace Google Sheets:")
 
-    # Lógica inteligente para la API Key (Sólo se muestra si no está en secrets)
+    # --- NUEVA SECCIÓN: MAPEO MANUAL (SOLUCIÓN DEFINITIVA) ---
+    st.markdown("### 🔧 Corregir Columnas")
+    st.caption("Si el sistema se equivoca, ajusta aquí:")
+    
+    if "df_raw" in st.session_state:
+        df = st.session_state["df_raw"]
+        cols = ["(Automático)"] + df.columns.tolist()
+        
+        # Selectores
+        c_prod = st.selectbox("📦 Columna Producto", cols, index=0)
+        c_cli = st.selectbox("👤 Columna Cliente", cols, index=0)
+        c_vent = st.selectbox("💰 Columna Venta", cols, index=0)
+        c_fecha = st.selectbox("📅 Columna Fecha", cols, index=0)
+        
+        # Actualizar Mapa según Selección
+        mapa_actual = st.session_state.get("mapa", {})
+        if c_prod != "(Automático)": mapa_actual['producto_nom'] = c_prod
+        if c_cli != "(Automático)": mapa_actual['cliente_nom'] = c_cli
+        if c_vent != "(Automático)": mapa_actual['venta'] = c_vent
+        if c_fecha != "(Automático)": mapa_actual['fecha'] = c_fecha
+        
+        # Botón para forzar actualización
+        if st.button("Aplicar Cambios Manuales"):
+            st.session_state["mapa"] = mapa_actual
+            st.rerun()
+
     try: 
         api_key = st.secrets["GOOGLE_API_KEY"]
     except:
@@ -295,91 +309,135 @@ if uploaded_files or df_google is not None:
             st.session_state.update({"df_raw": df_google, "last_url": sheet_url, "mapa": detectar_mapa_completo(df_google)})
             st.rerun()
 
+# --- 6. LAYOUT DASHBOARD ---
 if "df_raw" in st.session_state:
     df = st.session_state["df_raw"]
     kpis = calcular_kpis(df, st.session_state["mapa"])
     conflictos = auditar_calidad_datos(df, st.session_state["mapa"])
     
-    n_conflicts = len(conflictos)
-    label_exp = f"⚠️ Auditoría: {n_conflicts} conflictos" if n_conflicts > 0 else "✅ Auditoría: Datos Limpios"
-    with st.expander(label_exp, expanded=(n_conflicts > 0)):
-        if n_conflicts > 0:
-            if st.button("✨ Ayuda IA"): solucionar_conflictos_ia(conflictos)
-            for c in conflictos: st.markdown(f'<div class="audit-item">{c}</div>', unsafe_allow_html=True)
-        else: st.success("No se encontraron duplicados ni errores lógicos graves.")
-        
-        # DEBUG AUDITORÍA
-        with st.expander("🕵️ Ver columnas detectadas"):
-            st.write("Columnas que el sistema está usando:")
-            st.json(st.session_state["mapa"])
-
-    tipo, msg = kpis.get('alerta', ("neutral", ""))
-    st.markdown(f'<div class="custom-alert alert-{tipo}">{msg}</div>', unsafe_allow_html=True)
+    # === SPLIT VIEW ===
+    c_dashboard, c_chat = st.columns([3, 1], gap="medium")
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas Totales", f"${kpis.get('total_ventas', 0):,.0f}")
-    c2.metric("Promedio Diario", f"${kpis.get('promedio_dia', 0):,.0f}")
-    c3.metric("Total Clientes", kpis.get('total_clientes', 0))
-    st.markdown("---")
-    c4, c5 = st.columns(2)
-    c4.metric("📅 Fecha Inicio", formatear_fecha_es(kpis.get('fecha_inicio')))
-    c5.metric("📅 Fecha Fin", formatear_fecha_es(kpis.get('fecha_cierre')))
-
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Gráficos", "📅 Día a Día", "📥 Exportar", "🕰️ Historial"])
-    
-    with tab1:
-        c1, c2 = st.columns(2)
-        with c1:
-            if kpis.get('top_productos') is not None:
-                df_p = kpis['top_productos'].reset_index()
-                fig = px.bar(df_p, x=df_p.columns[1], y=df_p.columns[0], orientation='h', title="Top Productos", color=df_p.columns[1], color_continuous_scale=['#90caf9', '#0d47a1'])
-                fig.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
-                st.plotly_chart(fig, use_container_width=True)
-                explicar_visualizacion("Top Productos", df_p.to_string(), "k1")
-            else: st.info("Sin datos de productos.")
-        with c2:
-            if kpis.get('top_clientes') is not None:
-                df_c = kpis['top_clientes'].reset_index()
-                fig = px.bar(df_c, x=df_c.columns[1], y=df_c.columns[0], orientation='h', title="Top Clientes", color=df_c.columns[1], color_continuous_scale=['#a5d6a7', '#1b5e20'])
-                fig.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
-                st.plotly_chart(fig, use_container_width=True)
-                explicar_visualizacion("Top Clientes", df_c.to_string(), "k2")
-                
-    with tab2:
-        st.markdown("### 📅 Análisis de Calendario")
-        if kpis.get('tendencia_data') is not None:
-            fig = px.area(kpis['tendencia_data'], x='fecha', y='venta_total', title="📈 Evolución de Ventas")
-            st.plotly_chart(fig, use_container_width=True)
-        if kpis.get('ventas_por_dia') is not None:
-            st.markdown("##### 🗓️ ¿Qué día es más fuerte?")
-            fig_d = px.bar(kpis['ventas_por_dia'], x='dia_semana_esp', y='venta_total', color='venta_total', color_continuous_scale=['#d1c4e9', '#311b92'])
-            fig_d.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
-            st.plotly_chart(fig_d, use_container_width=True)
+    # ---------------- DASHBOARD ----------------
+    with c_dashboard:
+        # AUDITORÍA
+        n_conflicts = len(conflictos)
+        label_exp = f"⚠️ Auditoría: {n_conflicts} conflictos" if n_conflicts > 0 else "✅ Auditoría: Datos Limpios"
+        with st.expander(label_exp, expanded=False):
+            if n_conflicts > 0:
+                if st.button("✨ Ayuda IA", key="btn_audit"): solucionar_conflictos_ia(conflictos)
+                for c in conflictos: st.markdown(f'<div class="audit-item">{c}</div>', unsafe_allow_html=True)
+            else: st.success("No se encontraron duplicados ni errores lógicos graves.")
             
-    with tab3:
-        c1, c2 = st.columns(2)
-        pdf_bytes = generar_pdf_reporte(kpis, st.session_state.get("last_files", ["Reporte"]))
-        c1.download_button("📄 PDF Reporte", pdf_bytes, "reporte.pdf")
-        xls_bytes = generar_excel_descarga(df)
-        c2.download_button("📊 Excel Limpio", xls_bytes, "data.xlsx")
-        st.dataframe(df.head(100), use_container_width=True)
+            with st.expander("🕵️ Ver columnas usadas actualmente"):
+                st.write("Si algo sale mal, usa el menú 'Corregir Columnas' en la barra izquierda.")
+                st.json(st.session_state["mapa"])
 
-    with tab4:
-        if st.button("Guardar Snapshot"):
-            f_str = kpis.get('fecha_cierre').strftime("%Y-%m-%d") if isinstance(kpis.get('fecha_cierre'), datetime) else datetime.now().strftime("%Y-%m-%d")
-            guardar_en_memoria("Manual", kpis, f_str)
-            st.success("Guardado")
-        hist = obtener_historia()
-        if not hist.empty:
-            def limpiar_celda(valor):
-                if valor is None: return ""
-                if isinstance(valor, (int, float)): return valor
-                if isinstance(valor, bytes):
-                    try: return valor.decode('utf-8')
-                    except: return str(valor)
-                return str(valor)
-            hist_disp = hist.copy()
-            for col in hist_disp.columns:
-                if hist_disp[col].dtype == 'object': hist_disp[col] = hist_disp[col].apply(limpiar_celda)
-            st.dataframe(hist_disp)
-            if st.button("Borrar Historial"): borrar_historia(); st.rerun()
+        # METRICAS
+        tipo, msg = kpis.get('alerta', ("neutral", ""))
+        st.markdown(f'<div class="custom-alert alert-{tipo}">{msg}</div>', unsafe_allow_html=True)
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Ventas Totales", f"${kpis.get('total_ventas', 0):,.0f}")
+        m2.metric("Promedio Diario", f"${kpis.get('promedio_dia', 0):,.0f}")
+        m3.metric("Total Clientes", kpis.get('total_clientes', 0))
+        st.markdown("---")
+        m4, m5 = st.columns(2)
+        m4.metric("📅 Fecha Inicio", formatear_fecha_es(kpis.get('fecha_inicio')))
+        m5.metric("📅 Fecha Fin", formatear_fecha_es(kpis.get('fecha_cierre')))
+
+        # TABS
+        tab1, tab2, tab3, tab4 = st.tabs(["📊 Gráficos", "📅 Día a Día", "📥 Exportar", "🕰️ Historial"])
+        
+        with tab1:
+            tc1, tc2 = st.columns(2)
+            with tc1:
+                if kpis.get('top_productos') is not None:
+                    # FIX: Forzar nombre único para evitar error "cannot insert..."
+                    df_p = kpis['top_productos'].reset_index()
+                    df_p.columns = ['Producto', 'Total_Venta'] 
+                    
+                    fig = px.bar(df_p, x='Total_Venta', y='Producto', orientation='h', title="Top Productos", color='Total_Venta', color_continuous_scale=['#90caf9', '#0d47a1'])
+                    fig.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
+                    st.plotly_chart(fig, use_container_width=True)
+                    explicar_visualizacion("Top Productos", df_p.to_string(), "k1")
+                else: st.info("Sin datos de productos. Usa 'Corregir Columnas' en la izquierda.")
+            with tc2:
+                if kpis.get('top_clientes') is not None:
+                    # FIX: Forzar nombre único
+                    df_c = kpis['top_clientes'].reset_index()
+                    df_c.columns = ['Cliente', 'Total_Venta']
+                    
+                    fig = px.bar(df_c, x='Total_Venta', y='Cliente', orientation='h', title="Top Clientes", color='Total_Venta', color_continuous_scale=['#a5d6a7', '#1b5e20'])
+                    fig.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
+                    st.plotly_chart(fig, use_container_width=True)
+                    explicar_visualizacion("Top Clientes", df_c.to_string(), "k2")
+        
+        with tab2:
+            st.markdown("### 📅 Análisis de Calendario")
+            if kpis.get('tendencia_data') is not None:
+                fig = px.area(kpis['tendencia_data'], x='fecha', y='venta_total', title="📈 Evolución de Ventas")
+                st.plotly_chart(fig, use_container_width=True)
+            if kpis.get('ventas_por_dia') is not None:
+                st.markdown("##### 🗓️ ¿Qué día es más fuerte?")
+                fig_d = px.bar(kpis['ventas_por_dia'], x='dia_semana_esp', y='venta_total', color='venta_total', color_continuous_scale=['#d1c4e9', '#311b92'])
+                fig_d.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
+                st.plotly_chart(fig_d, use_container_width=True)
+            
+        with tab3:
+            ex1, ex2 = st.columns(2)
+            pdf_bytes = generar_pdf_reporte(kpis, st.session_state.get("last_files", ["Reporte"]))
+            ex1.download_button("📄 PDF Reporte", pdf_bytes, "reporte.pdf")
+            xls_bytes = generar_excel_descarga(df)
+            ex2.download_button("📊 Excel Limpio", xls_bytes, "data.xlsx")
+            st.dataframe(df.head(100), use_container_width=True)
+
+        with tab4:
+            if st.button("Guardar Snapshot"):
+                f_str = kpis.get('fecha_cierre').strftime("%Y-%m-%d") if isinstance(kpis.get('fecha_cierre'), datetime) else datetime.now().strftime("%Y-%m-%d")
+                guardar_en_memoria("Manual", kpis, f_str)
+                st.success("Guardado")
+            hist = obtener_historia()
+            if not hist.empty:
+                def limpiar_celda(valor):
+                    if valor is None: return ""
+                    if isinstance(valor, (int, float)): return valor
+                    if isinstance(valor, bytes):
+                        try: return valor.decode('utf-8')
+                        except: return str(valor)
+                    return str(valor)
+                hist_disp = hist.copy()
+                for col in hist_disp.columns:
+                    if hist_disp[col].dtype == 'object': hist_disp[col] = hist_disp[col].apply(limpiar_celda)
+                st.dataframe(hist_disp)
+                if st.button("Borrar Historial"): borrar_historia(); st.rerun()
+
+    # ---------------- CHAT PERMANENTE ----------------
+    with c_chat:
+        st.markdown('<div class="chat-panel">', unsafe_allow_html=True)
+        st.markdown("### 🤖 Asistente")
+        st.caption("Pregunta a tus datos:")
+        
+        if "messages" not in st.session_state: st.session_state.messages = []
+        
+        chat_container = st.container(height=500)
+        with chat_container:
+            if not st.session_state.messages:
+                st.info("👋 ¡Hola! Soy tu analista de datos.")
+            for m in st.session_state.messages:
+                cls = "chat-msg-user" if m["role"] == "user" else "chat-msg-ai"
+                st.markdown(f'<div class="{cls}">{m["content"]}</div>', unsafe_allow_html=True)
+
+        if prompt := st.chat_input("Escribe aquí..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.rerun()
+
+        if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+            with chat_container:
+                with st.spinner("Analizando..."):
+                    api_key_val = st.session_state.get("api_key_input") or st.secrets.get("GOOGLE_API_KEY")
+                    response = agente_inteligente_langchain(df, st.session_state.messages[-1]["content"], api_key_val)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
