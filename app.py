@@ -264,7 +264,7 @@ def calcular_kpis(df, mapa):
 def agente_inteligente_langchain(df, query, api_key):
     if not api_key: return "🔒 Por favor configura tu API Key en la barra lateral."
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0, google_api_key=api_key)
+        llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0, google_api_key=api_key)
         agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True, handle_parsing_errors=True)
         return agent.invoke(query)['output']
     except Exception as e: return f"Error: {str(e)}"
@@ -298,7 +298,7 @@ def explicar_visualizacion(titulo, datos, key):
             with st.spinner("..."):
                 try:
                     os.environ["GOOGLE_API_KEY"] = api_key_val
-                    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.7)
+                    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.7)
                     st.success(llm.invoke(f"Analiza brevemente: {titulo}. Datos: {datos}").content)
                 except Exception as e: st.error(str(e))
     else: st.caption("🔒 Configura API Key.")
@@ -309,7 +309,7 @@ def solucionar_conflictos_ia(lista_errores):
     with st.spinner("🤖 Analizando..."):
         try:
             os.environ["GOOGLE_API_KEY"] = api_key_val
-            llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.5)
+            llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.5)
             st.info(llm.invoke(f"Da pasos para corregir en Excel: {str(lista_errores[:10])}").content)
         except Exception as e: st.error(str(e))
 
