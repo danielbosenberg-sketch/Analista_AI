@@ -23,24 +23,62 @@ st.set_page_config(
 try: init_db()
 except Exception as e: st.error(f"Error base de datos: {e}")
 
-# --- 2. DISEÑO CSS ---
+# --- 2. DISEÑO CSS (DASHBOARD SPLIT VIEW) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif; color: #1e293b; }
     .stApp { background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
     
-    .header-container { background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); }
+    /* HEADER EN SIDEBAR */
+    .header-container { 
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); 
+        padding: 20px; 
+        border-radius: 15px; 
+        color: white; 
+        text-align: center; 
+        margin-bottom: 20px; 
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); 
+    }
     .header-title { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
     .header-subtitle { font-size: 14px; opacity: 0.9; font-weight: 300; margin-top: 5px; line-height: 1.2; }
 
+    /* ESTILO DE MÉTRICAS */
     div[data-testid="stMetric"] { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center; height: 100%; }
     div[data-testid="stMetricValue"] { font-size: 26px !important; white-space: normal !important; line-height: 1.2 !important; }
     
-    .chat-panel { background-color: white; border-left: 1px solid #e2e8f0; height: 100%; padding: 1rem; border-radius: 10px; box-shadow: -5px 0 15px rgba(0,0,0,0.02); }
-    .chat-msg-user { background-color: #eff6ff; color: #1e3a8a; padding: 10px; border-radius: 10px 10px 0 10px; margin-bottom: 10px; text-align: right; font-size: 0.9rem; }
-    .chat-msg-ai { background-color: #f1f5f9; color: #334155; padding: 10px; border-radius: 10px 10px 10px 0; margin-bottom: 10px; text-align: left; font-size: 0.9rem; border: 1px solid #e2e8f0; }
+    /* ESTILO DEL CHAT PANEL DERECHO */
+    .chat-panel {
+        background-color: white;
+        border-left: 1px solid #e2e8f0;
+        height: 100%;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: -5px 0 15px rgba(0,0,0,0.02);
+    }
+    
+    /* MENSAJES DEL CHAT */
+    .chat-msg-user {
+        background-color: #eff6ff;
+        color: #1e3a8a;
+        padding: 10px;
+        border-radius: 10px 10px 0 10px;
+        margin-bottom: 10px;
+        text-align: right;
+        font-size: 0.9rem;
+    }
+    .chat-msg-ai {
+        background-color: #f1f5f9;
+        color: #334155;
+        padding: 10px;
+        border-radius: 10px 10px 10px 0;
+        margin-bottom: 10px;
+        text-align: left;
+        font-size: 0.9rem;
+        border: 1px solid #e2e8f0;
+    }
 
+    /* TRADUCCIÓN FILE UPLOADER */
     [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child { visibility: hidden; height: 0px !important; }
     [data-testid="stFileUploaderDropzoneInstructions"] > div:nth-child(2) { visibility: hidden; height: 0px !important; }
     [data-testid="stFileUploaderDropzoneInstructions"]::before { content: "Arrastra archivos aquí"; visibility: visible; display: block; text-align: center; font-size: 16px; font-weight: 600; color: #4b5563; margin-bottom: 5px; }
@@ -50,7 +88,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNCIONES DE LÓGICA ---
+# --- 3. FUNCIONES DE LÓGICA Y DICCIONARIOS ---
 
 def cargar_google_sheet(url):
     try:
@@ -96,19 +134,61 @@ def buscar_columna_por_puntos(df, keywords_pos, keywords_neg=[]):
         if any(normalizar_texto(neg) in col_norm for neg in keywords_neg): score -= 1000
         for kw in keywords_pos:
             kw_norm = normalizar_texto(kw)
-            if kw_norm in col_norm: score += 100; 
-            if len(col_norm) <= len(kw_norm) + 5: score += 50
+            if kw_norm in col_norm: 
+                score += 100 
+                # Bonificación si es casi idéntica
+                if len(col_norm) <= len(kw_norm) + 5: score += 50
         if score > max_score and score > 0: max_score = score; best_col = col
     return best_col
 
 def detectar_mapa_completo(df):
+    """
+    Motor de detección mejorado con Diccionario de Retail amplio.
+    """
     mapa = {}
-    mapa['factura'] = buscar_columna_por_puntos(df, ['factura', 'invoice', 'consecutivo', 'folio', 'ticket'], ['fecha'])
-    mapa['cliente_id'] = buscar_columna_por_puntos(df, ['id_cliente', 'nit', 'cedula', 'rut', 'dni'], ['nom', 'razon'])
-    mapa['cliente_nom'] = buscar_columna_por_puntos(df, ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador'], ['id', 'cod', 'nit', 'producto'])
-    mapa['producto_nom'] = buscar_columna_por_puntos(df, ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material', 'modelo', 'referencia'], ['id', 'cod', 'sku', 'cliente', 'razon'])
-    mapa['venta'] = buscar_columna_por_puntos(df, ['total', 'venta', 'importe', 'monto', 'valor', 'precio'], ['unitario', 'impuesto', 'cantidad'])
-    mapa['fecha'] = buscar_columna_por_puntos(df, ['fecha', 'date', 'dia', 'registro'], ['venc'])
+    
+    # --- DICCIONARIOS DE PALABRAS CLAVE (Retail / Ventas) ---
+    kw_factura = ['factura', 'invoice', 'consecutivo', 'folio', 'ticket', 'documento', 'doc_ref', 'comprobante', 'boleta', 'nro_factura', 'num_factura', 'referencia_pago']
+    kw_cli_id = ['id_cliente', 'nit', 'cedula', 'rut', 'dni', 'identificacion', 'cif', 'nif', 'rif', 'rfc', 'cliente_id', 'cod_cliente', 'codigo_cliente', 'documento_cliente']
+    kw_cli_nom = ['nombre', 'cliente', 'razon', 'social', 'tercero', 'comprador', 'usuario', 'adquiriente', 'nombre_cliente', 'nom_cliente', 'cliente_nombre', 'destinatario']
+    kw_prod_id = ['id_producto', 'sku', 'codigo', 'referencia', 'ref', 'ean', 'upc', 'isbn', 'item_id', 'cod_prod', 'codigo_producto', 'part_number', 'material_id']
+    kw_prod_nom = ['producto', 'articulo', 'descripcion', 'item', 'detalle', 'material', 'concepto', 'mercancia', 'nombre_producto', 'desc_prod', 'nombre_item', 'glosa']
+    kw_venta = ['total', 'venta', 'importe', 'monto', 'valor', 'precio', 'subtotal', 'neto', 'bruto', 'total_venta', 'valor_venta', 'precio_total', 'amount']
+    kw_fecha = ['fecha', 'date', 'dia', 'registro', 'emision', 'creacion', 'time', 'timestamp', 'fecha_factura', 'fecha_venta']
+    
+    # --- DETECCION ---
+    
+    # 1. Factura
+    mapa['factura'] = buscar_columna_por_puntos(df, kw_factura, ['fecha', 'venc', 'total'])
+    
+    # 2. Cliente ID
+    mapa['cliente_id'] = buscar_columna_por_puntos(df, kw_cli_id, ['nom', 'razon', 'factura', 'prod', 'nombre'])
+    
+    # 3. Cliente Nombre (Negativos: Evitar productos)
+    mapa['cliente_nom'] = buscar_columna_por_puntos(df, kw_cli_nom, 
+                                                    ['id', 'cod', 'nit', 'producto', 'articulo', 'item', 'sku', 'descripcion', 'ref']) 
+    
+    # 4. Producto ID
+    mapa['producto_id'] = buscar_columna_por_puntos(df, kw_prod_id, 
+                                                    ['nom', 'desc', 'cli', 'razon', 'cliente', 'nombre'])
+    
+    # 5. Producto Nombre (Negativos: Evitar clientes/usuarios)
+    mapa['producto_nom'] = buscar_columna_por_puntos(df, kw_prod_nom, 
+                                                     ['id', 'cod', 'sku', 'cliente', 'razon', 'social', 'nit', 'comprador', 'nombre', 'usuario', 'vendedor'])
+    
+    # Fallback si no encuentra nombre pero si ID
+    if not mapa['producto_nom']: mapa['producto_nom'] = mapa['producto_id']
+    
+    # 6. Venta (Dinero)
+    mapa['venta'] = buscar_columna_por_puntos(df, kw_venta, ['unitario', 'impuesto', 'cantidad', 'id', 'cod'])
+    
+    # 7. Fecha
+    mapa['fecha'] = buscar_columna_por_puntos(df, kw_fecha, ['venc', 'nacimiento'])
+    
+    # Validacion de seguridad: Producto no puede ser Venta
+    if mapa['producto_nom'] == mapa['venta'] and mapa['venta'] is not None:
+        mapa['producto_nom'] = None 
+
     return mapa
 
 def auditar_calidad_datos(df, mapa):
@@ -170,7 +250,6 @@ def calcular_kpis(df, mapa):
     col_cli_n = mapa.get('cliente_nom')
     if col_cli_n and col_venta: kpis['top_clientes'] = df.groupby(col_cli_n)[col_venta].sum().sort_values(ascending=False).head(5)
     else: kpis['top_clientes'] = None
-    
     col_costo = buscar_columna_por_puntos(df, ['costo', 'compra'], [])
     if col_costo and col_venta:
         if df[col_costo].dtype == 'object':
@@ -188,7 +267,7 @@ def agente_inteligente_langchain(df, query, api_key):
         llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0, google_api_key=api_key)
         agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True, handle_parsing_errors=True)
         return agent.invoke(query)['output']
-    except Exception as e: return f"Error procesando tu pregunta: {str(e)}"
+    except Exception as e: return f"Error: {str(e)}"
 
 class PDFReport(FPDF):
     def header(self): self.set_font('Arial', 'B', 15); self.cell(0, 10, 'Reporte Ejecutivo', 0, 1, 'C'); self.ln(5)
@@ -255,32 +334,6 @@ with st.sidebar:
         st.info("El sheet debe ser público.")
         sheet_url = st.text_input("Enlace Google Sheets:")
 
-    # --- NUEVA SECCIÓN: MAPEO MANUAL (SOLUCIÓN DEFINITIVA) ---
-    st.markdown("### 🔧 Corregir Columnas")
-    st.caption("Si el sistema se equivoca, ajusta aquí:")
-    
-    if "df_raw" in st.session_state:
-        df = st.session_state["df_raw"]
-        cols = ["(Automático)"] + df.columns.tolist()
-        
-        # Selectores
-        c_prod = st.selectbox("📦 Columna Producto", cols, index=0)
-        c_cli = st.selectbox("👤 Columna Cliente", cols, index=0)
-        c_vent = st.selectbox("💰 Columna Venta", cols, index=0)
-        c_fecha = st.selectbox("📅 Columna Fecha", cols, index=0)
-        
-        # Actualizar Mapa según Selección
-        mapa_actual = st.session_state.get("mapa", {})
-        if c_prod != "(Automático)": mapa_actual['producto_nom'] = c_prod
-        if c_cli != "(Automático)": mapa_actual['cliente_nom'] = c_cli
-        if c_vent != "(Automático)": mapa_actual['venta'] = c_vent
-        if c_fecha != "(Automático)": mapa_actual['fecha'] = c_fecha
-        
-        # Botón para forzar actualización
-        if st.button("Aplicar Cambios Manuales"):
-            st.session_state["mapa"] = mapa_actual
-            st.rerun()
-
     try: 
         api_key = st.secrets["GOOGLE_API_KEY"]
     except:
@@ -315,7 +368,6 @@ if "df_raw" in st.session_state:
     kpis = calcular_kpis(df, st.session_state["mapa"])
     conflictos = auditar_calidad_datos(df, st.session_state["mapa"])
     
-    # === SPLIT VIEW ===
     c_dashboard, c_chat = st.columns([3, 1], gap="medium")
     
     # ---------------- DASHBOARD ----------------
@@ -329,8 +381,8 @@ if "df_raw" in st.session_state:
                 for c in conflictos: st.markdown(f'<div class="audit-item">{c}</div>', unsafe_allow_html=True)
             else: st.success("No se encontraron duplicados ni errores lógicos graves.")
             
-            with st.expander("🕵️ Ver columnas usadas actualmente"):
-                st.write("Si algo sale mal, usa el menú 'Corregir Columnas' en la barra izquierda.")
+            with st.expander("🕵️ Ver columnas detectadas"):
+                st.write("Columnas que el sistema está usando:")
                 st.json(st.session_state["mapa"])
 
         # METRICAS
@@ -353,7 +405,7 @@ if "df_raw" in st.session_state:
             tc1, tc2 = st.columns(2)
             with tc1:
                 if kpis.get('top_productos') is not None:
-                    # FIX: Forzar nombre único para evitar error "cannot insert..."
+                    # FIX: Forzar nombre único
                     df_p = kpis['top_productos'].reset_index()
                     df_p.columns = ['Producto', 'Total_Venta'] 
                     
@@ -361,7 +413,7 @@ if "df_raw" in st.session_state:
                     fig.update_traces(marker_line_color='rgba(0,0,0,0.5)', marker_line_width=1)
                     st.plotly_chart(fig, use_container_width=True)
                     explicar_visualizacion("Top Productos", df_p.to_string(), "k1")
-                else: st.info("Sin datos de productos. Usa 'Corregir Columnas' en la izquierda.")
+                else: st.info("Sin datos de productos.")
             with tc2:
                 if kpis.get('top_clientes') is not None:
                     # FIX: Forzar nombre único
