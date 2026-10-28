@@ -5,6 +5,7 @@ import uuid
 import unicodedata
 import zipfile
 import io
+import functools
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +17,33 @@ TIPOS = ["Presentación", "Guía / Taller", "Lectura", "Examen / Quiz", "Rúbric
          "Programa / Syllabus", "Notas", "Notas de clase", "Video / Enlace", "Otro"]
 
 
+_drive = None  # cliente de Drive si el almacenamiento está en la nube
+_DB_NOMBRE = "clases.db"
+
+
+def configurar_drive(cliente):
+    global _drive
+    _drive = cliente
+
+
+def _sync():
+    """Sube la base de datos a Drive después de cada cambio."""
+    if not _drive:
+        return
+    raiz = _drive.carpeta([])
+    with open(DB_PATH, "rb") as f:
+        _drive.subir(raiz, _DB_NOMBRE, f.read(), _drive.buscar(_DB_NOMBRE, raiz))
+
+
+def _mutador(f):
+    @functools.wraps(f)
+    def envoltura(*a, **k):
+        r = f(*a, **k)
+        _sync()
+        return r
+    return envoltura
+
+
 def _conn():
     os.makedirs(FILES_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -25,6 +53,13 @@ def _conn():
 
 
 def init_db():
+    if _drive and not os.path.exists(DB_PATH):
+        raiz = _drive.carpeta([])
+        fid = _drive.buscar(_DB_NOMBRE, raiz)
+        if fid:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            with open(DB_PATH, "wb") as f:
+                f.write(_drive.descargar(fid))
     with _conn() as c:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS cursos (
@@ -69,6 +104,7 @@ def listar_cursos(incluir_archivados=False):
         return c.execute(q).fetchall()
 
 
+@_mutador
 def crear_curso(nombre, periodo, codigo="", grupo="", descripcion=""):
     with _conn() as c:
         cur = c.execute(
@@ -77,6 +113,7 @@ def crear_curso(nombre, periodo, codigo="", grupo="", descripcion=""):
         return cur.lastrowid
 
 
+@_mutador
 def actualizar_curso(curso_id, nombre, periodo, codigo, grupo, descripcion, archivado):
     with _conn() as c:
         c.execute("""UPDATE cursos SET nombre=?, periodo=?, codigo=?, grupo=?, descripcion=?, archivado=?
@@ -85,6 +122,7 @@ def actualizar_curso(curso_id, nombre, periodo, codigo, grupo, descripcion, arch
                    descripcion.strip(), int(archivado), curso_id))
 
 
+@_mutador
 def eliminar_curso(curso_id):
     with _conn() as c:
         rutas = [r["archivo"] for r in c.execute(
@@ -101,6 +139,7 @@ def listar_unidades(curso_id):
                          (curso_id,)).fetchall()
 
 
+@_mutador
 def crear_unidad(curso_id, nombre):
     with _conn() as c:
         n = c.execute("SELECT COALESCE(MAX(orden),0)+1 FROM unidades WHERE curso_id=?",
@@ -109,11 +148,13 @@ def crear_unidad(curso_id, nombre):
                   (curso_id, nombre.strip(), n))
 
 
+@_mutador
 def renombrar_unidad(unidad_id, nombre):
     with _conn() as c:
         c.execute("UPDATE unidades SET nombre=? WHERE id=?", (nombre.strip(), unidad_id))
 
 
+@_mutador
 def eliminar_unidad(unidad_id):
     with _conn() as c:
         c.execute("DELETE FROM unidades WHERE id=?", (unidad_id,))
@@ -126,16 +167,29 @@ def _limpiar_nombre(nombre):
 
 
 def _borrar_archivo(ruta_rel):
+    if ruta_rel.startswith("drive:"):
+        try:
+            _drive.borrar(ruta_rel[6:])
+        except Exception:
+            pass
+        return
     try:
         os.remove(os.path.join(FILES_DIR, ruta_rel))
     except OSError:
         pass
 
 
+@_mutador
 def agregar_documento(curso_id, titulo, tipo, unidad_id=None, fecha=None, etiquetas="",
                       notas="", enlace="", archivo_nombre=None, archivo_bytes=None):
     ruta = None
-    if archivo_bytes is not None:
+    if archivo_bytes is not None and _drive:
+        with _conn() as c:
+            cu = c.execute("SELECT * FROM cursos WHERE id=?", (curso_id,)).fetchone()
+        nombre_carpeta = cu["nombre"] + (f" - Grupo {cu['grupo']}" if cu["grupo"] else "")
+        padre = _drive.carpeta([cu["periodo"], nombre_carpeta])
+        ruta = "drive:" + _drive.subir(padre, archivo_nombre, archivo_bytes)
+    elif archivo_bytes is not None:
         carpeta = os.path.join(FILES_DIR, str(curso_id))
         os.makedirs(carpeta, exist_ok=True)
         ruta = os.path.join(str(curso_id), f"{uuid.uuid4().hex[:8]}_{_limpiar_nombre(archivo_nombre)}")
@@ -171,6 +225,7 @@ def buscar_documentos(curso_id=None, unidad_id=None, tipo=None, texto=""):
         return c.execute(q, p).fetchall()
 
 
+@_mutador
 def actualizar_documento(doc_id, titulo, tipo, unidad_id, fecha, etiquetas, notas, enlace):
     with _conn() as c:
         c.execute("""UPDATE documentos SET titulo=?, tipo=?, unidad_id=?, fecha=?, etiquetas=?, notas=?, enlace=?
@@ -179,6 +234,7 @@ def actualizar_documento(doc_id, titulo, tipo, unidad_id, fecha, etiquetas, nota
                    enlace.strip(), doc_id))
 
 
+@_mutador
 def eliminar_documento(doc_id):
     with _conn() as c:
         row = c.execute("SELECT archivo FROM documentos WHERE id=?", (doc_id,)).fetchone()
@@ -188,6 +244,8 @@ def eliminar_documento(doc_id):
 
 
 def leer_archivo(ruta_rel):
+    if ruta_rel.startswith("drive:"):
+        return _drive.descargar(ruta_rel[6:])
     with open(os.path.join(FILES_DIR, ruta_rel), "rb") as f:
         return f.read()
 

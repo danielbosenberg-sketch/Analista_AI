@@ -8,6 +8,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
 
 st.set_page_config(page_title="Mis Clases", page_icon="📚", layout="wide")
+
+
+@st.cache_resource
+def _conectar_drive():
+    try:
+        cfg = dict(st.secrets["drive"])
+    except Exception:
+        return None
+    from storage_drive import DriveClient
+    return DriveClient(cfg)
+
+
+db.configurar_drive(_conectar_drive())
 db.init_db()
 
 ICONOS = {"Presentación": "📊", "Guía / Taller": "📝", "Lectura": "📖", "Examen / Quiz": "✅",
@@ -23,6 +36,7 @@ def etiqueta_curso(c):
 
 # ---------------- Sidebar ----------------
 st.sidebar.title("📚 Mis Clases")
+st.sidebar.caption("☁️ Guardando en Google Drive" if db._drive else "💾 Guardando en disco local")
 ver_arch = st.sidebar.checkbox("Mostrar cursos archivados")
 cursos = db.listar_cursos(incluir_archivados=ver_arch)
 
